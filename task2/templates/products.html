@@ -1,0 +1,344 @@
+{% extends "layout.html" %}
+
+{% block title %}Products & Stock — StockPulse{% endblock %}
+{% block header_title %}Products & Stock Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Actions & Search Toolbar -->
+    <div class="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        
+        <!-- Search and Filters Form -->
+        <form method="GET" action="/products" class="flex flex-wrap items-center gap-3 flex-1">
+            <!-- Search Input -->
+            <div class="relative flex-1 min-w-[220px]">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" name="search" value="{{ search }}" placeholder="Search by product name or SKU..."
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+            </div>
+
+            <!-- Category Filter -->
+            <select name="category" onchange="this.form.submit()"
+                    class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-700 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Stock Level Filter -->
+            <select name="status" onchange="this.form.submit()"
+                    class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-700 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+                <option value="">All Stock Levels</option>
+                <option value="in_stock" {% if selected_status == 'in_stock' %}selected{% endif %}>In Stock Only</option>
+                <option value="low_stock" {% if selected_status == 'low_stock' %}selected{% endif %}>Low Stock Only</option>
+                <option value="out_of_stock" {% if selected_status == 'out_of_stock' %}selected{% endif %}>Out of Stock Only</option>
+            </select>
+
+            <button type="submit" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">
+                Filter
+            </button>
+            {% if search or selected_category or selected_status %}
+            <a href="/products" class="text-xs text-slate-500 hover:text-slate-800 underline">Clear filters</a>
+            {% endif %}
+        </form>
+
+        <!-- Add Product Button (Store Manager) -->
+        {% if current_user.role == 'admin' %}
+        <div>
+            <button onclick="document.getElementById('addProductModal').classList.remove('hidden')"
+                    class="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold shadow-sm flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Add Product</span>
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Inventory Products Table -->
+    <div class="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-600">
+                <thead class="bg-slate-50/80 text-xs uppercase text-slate-500 border-b border-slate-100 font-semibold">
+                    <tr>
+                        <th class="px-5 py-3.5">SKU</th>
+                        <th class="px-5 py-3.5">Product Name</th>
+                        <th class="px-5 py-3.5">Category</th>
+                        <th class="px-5 py-3.5">Location</th>
+                        <th class="px-5 py-3.5">Price</th>
+                        <th class="px-5 py-3.5">Stock Level</th>
+                        <th class="px-5 py-3.5">Status</th>
+                        <th class="px-5 py-3.5">Notes</th>
+                        {% if current_user.role == 'admin' %}
+                        <th class="px-5 py-3.5 text-right">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for p in products %}
+                    <tr class="hover:bg-slate-50/70 transition">
+                        <!-- SKU -->
+                        <td class="px-5 py-4 font-mono text-xs text-slate-500 font-medium">{{ p.sku }}</td>
+
+                        <!-- Product Name -->
+                        <td class="px-5 py-4 font-bold text-slate-900 max-w-[240px]">
+                            <div class="truncate">{{ p.name }}</div>
+                            <div class="text-[11px] text-slate-400 font-normal">Reorder point: {{ p.min_threshold }} units</div>
+                        </td>
+
+                        <!-- Category -->
+                        <td class="px-5 py-4 text-slate-600">{{ p.category }}</td>
+
+                        <!-- Location -->
+                        <td class="px-5 py-4 text-slate-600 text-xs">
+                            <span class="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-medium">
+                                <i class="fa-solid fa-location-dot text-slate-400 text-[10px]"></i>
+                                {{ p.warehouse_location }}
+                            </span>
+                        </td>
+
+                        <!-- Price -->
+                        <td class="px-5 py-4 font-semibold text-slate-900">${{ "{:,.2f}".format(p.price|float) }}</td>
+
+                        <!-- Quick Stock Increment / Decrement Stepper -->
+                        <td class="px-5 py-4">
+                            {% if current_user.role in ['admin', 'clerk'] %}
+                            <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-0.5 w-fit shadow-xs">
+                                <form action="/products/{{ p.id }}/adjust-stock" method="POST" class="inline">
+                                    <input type="hidden" name="action" value="dec">
+                                    <button type="submit" title="Remove 1 unit" class="w-6 h-6 rounded bg-white hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition shadow-2xs">
+                                        &minus;
+                                    </button>
+                                </form>
+                                <span class="px-2 text-xs font-bold text-slate-900 min-w-[24px] text-center">
+                                    {{ p.quantity }}
+                                </span>
+                                <form action="/products/{{ p.id }}/adjust-stock" method="POST" class="inline">
+                                    <input type="hidden" name="action" value="inc">
+                                    <button type="submit" title="Add 1 unit" class="w-6 h-6 rounded bg-white hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition shadow-2xs">
+                                        +
+                                    </button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <span class="font-bold text-slate-900">{{ p.quantity }} units</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Status Badge -->
+                        <td class="px-5 py-4">
+                            {% if p.status_color == 'rose' %}
+                            <span class="px-2.5 py-1 text-xs rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
+                                Out of Stock
+                            </span>
+                            {% elif p.status_color == 'amber' %}
+                            <span class="px-2.5 py-1 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                                Low Stock
+                            </span>
+                            {% else %}
+                            <span class="px-2.5 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                In Stock
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Relational Notes Link -->
+                        <td class="px-5 py-4">
+                            <a href="/products/{{ p.id }}/notes" 
+                               class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition">
+                                <i class="fa-regular fa-comment-dots text-slate-500"></i>
+                                <span>{{ p.notes_count }} Notes</span>
+                            </a>
+                        </td>
+
+                        <!-- Actions (Store Manager Only) -->
+                        {% if current_user.role == 'admin' %}
+                        <td class="px-5 py-4 text-right">
+                            <div class="flex items-center justify-end gap-1">
+                                <button type="button" title="Edit product"
+                                        onclick="openEditProductModal({{ p.id }}, '{{ p.sku|escape }}', '{{ p.name|escape }}', '{{ p.category|escape }}', '{{ p.warehouse_location|escape }}', {{ p.price }}, {{ p.quantity }}, {{ p.min_threshold }})"
+                                        class="p-1.5 text-slate-400 hover:text-emerald-600 transition">
+                                    <i class="fa-regular fa-pen-to-square text-sm"></i>
+                                </button>
+                                <form action="/products/{{ p.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ p.name }}?')">
+                                    <button type="submit" title="Delete product"
+                                            class="p-1.5 text-slate-400 hover:text-rose-600 transition">
+                                        <i class="fa-regular fa-trash-can text-sm"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="p-8 text-center text-slate-500">
+                            No products found matching your search.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Add New Product -->
+<div id="addProductModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden border border-slate-100">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 text-base">Add New Product</h3>
+            <button onclick="document.getElementById('addProductModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form action="/products/add" method="POST" class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">SKU / Item Code *</label>
+                    <input type="text" name="sku" placeholder="e.g. SKU-ELEC-909" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
+                    <input type="text" name="category" placeholder="e.g. Electronics" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Product Name *</label>
+                <input type="text" name="name" placeholder="e.g. Wireless Ergonomic Mouse" required
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Shelf / Location *</label>
+                    <input type="text" name="warehouse_location" placeholder="e.g. Shelf A-02" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Retail Price ($) *</label>
+                    <input type="number" step="0.01" name="price" placeholder="49.99" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Starting Quantity *</label>
+                    <input type="number" name="quantity" value="10" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Reorder Point *</label>
+                    <input type="number" name="min_threshold" value="5" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('addProductModal').classList.add('hidden')"
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold shadow-sm transition">
+                    Save Product
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Product (Store Manager) -->
+<div id="editProductModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden border border-slate-100">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+                <i class="fa-regular fa-pen-to-square text-emerald-600"></i>
+                <span>Edit Product Details</span>
+            </h3>
+            <button onclick="document.getElementById('editProductModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form id="editProductForm" method="POST" class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">SKU (Immutable)</label>
+                    <input type="text" id="editSku" disabled
+                           class="w-full bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-500 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
+                    <input type="text" name="category" id="editCategory" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Product Name *</label>
+                <input type="text" name="name" id="editName" required
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Shelf / Location *</label>
+                    <input type="text" name="warehouse_location" id="editLocation" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Retail Price ($) *</label>
+                    <input type="number" step="0.01" name="price" id="editPrice" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Current Quantity *</label>
+                    <input type="number" name="quantity" id="editQuantity" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Reorder Threshold *</label>
+                    <input type="number" name="min_threshold" id="editThreshold" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('editProductModal').classList.add('hidden')"
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold shadow-sm transition">
+                    Update Product
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditProductModal(id, sku, name, category, location, price, qty, threshold) {
+    document.getElementById('editProductForm').action = '/products/' + id + '/edit';
+    document.getElementById('editSku').value = sku;
+    document.getElementById('editName').value = name;
+    document.getElementById('editCategory').value = category;
+    document.getElementById('editLocation').value = location;
+    document.getElementById('editPrice').value = price;
+    document.getElementById('editQuantity').value = qty;
+    document.getElementById('editThreshold').value = threshold;
+    document.getElementById('editProductModal').classList.remove('hidden');
+}
+</script>
+{% endblock %}

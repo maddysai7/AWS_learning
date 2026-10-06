@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPulse — AWS 3-Tier Production Cloud Architecture</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @media print {
+            body { background: #0f172a !important; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 md:p-10 font-sans">
+
+    <!-- Document Header -->
+    <div class="max-w-6xl mx-auto mb-8 border-b border-slate-800 pb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2 text-xs font-mono text-emerald-400 font-bold uppercase tracking-wider mb-1">
+                <i class="fa-brands fa-aws text-base text-amber-400"></i> AWS Cloud Architecture Assessment &bull; Round 2
+            </div>
+            <h1 class="text-3xl font-extrabold text-white">StockPulse — 3-Tier Secure Cloud Architecture</h1>
+            <p class="text-sm text-slate-400 mt-1">Multi-AZ High Availability, Security Group Chaining, Isolated RDS Database & AppSec RBAC/IDOR</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+                <i class="fa-solid fa-shield-halved mr-1"></i> DevSecOps Hardened
+            </span>
+            <span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">
+                Region: us-east-1
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Architecture Canvas -->
+    <div class="max-w-6xl mx-auto space-y-6">
+
+        <!-- Outer VPC Box -->
+        <div class="border-2 border-dashed border-slate-700/80 rounded-3xl p-6 bg-slate-900/40 relative">
+            <div class="absolute -top-3.5 left-6 bg-slate-800 px-3 py-0.5 rounded-full text-xs font-mono text-slate-300 border border-slate-700 flex items-center gap-2">
+                <i class="fa-solid fa-cloud text-sky-400"></i> AWS VPC (CIDR: 10.0.0.0/16) &bull; Multi-AZ (us-east-1a & us-east-1b)
+            </div>
+
+            <!-- Flow: Internet Users to IGW -->
+            <div class="mb-6 flex flex-col items-center">
+                <div class="px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 shadow-xl flex items-center gap-4 text-sm">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-white">Public Internet Users & Store Staff</div>
+                        <div class="text-xs text-slate-400">Access Roles: Store Manager (Admin) &bull; Floor Staff (Clerk) &bull; Auditor</div>
+                    </div>
+                </div>
+                <div class="h-6 w-0.5 bg-emerald-500 my-1 relative">
+                    <div class="absolute -bottom-1 -left-1 text-emerald-400 text-[10px]">▼</div>
+                </div>
+                <span class="text-[10px] font-mono font-bold bg-slate-800 px-2 py-0.5 rounded text-emerald-300 border border-slate-700">
+                    HTTPS / HTTP (Port 80/443)
+                </span>
+            </div>
+
+            <!-- The 3 Architecture Tiers Grid -->
+            <div class="space-y-6">
+
+                <!-- TIER 1: PUBLIC LOAD BALANCER TIER -->
+                <div class="border border-sky-500/40 rounded-2xl bg-sky-950/20 p-5 relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500 text-slate-950">Tier 1</span>
+                            <h3 class="font-bold text-white text-base">Public Entry & Load Balancing Tier</h3>
+                            <span class="text-xs text-slate-400 font-mono">(Public Subnets: 10.0.1.0/24 & 10.0.2.0/24)</span>
+                        </div>
+                        <span class="text-[11px] font-mono text-sky-300 bg-sky-950 px-2.5 py-1 rounded border border-sky-800/60">
+                            IGW: Attached
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- ALB Component -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-network-wired"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">Application Load Balancer (ALB)</h4>
+                                <p class="text-xs text-slate-400 mt-1">Cross-zone load balancer distributing public HTTP requests to backend targets.</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-emerald-300">Health Check: /api/health</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-sky-300">Timeout: 5s</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ALB Security Group -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-shield"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">Security Group: <code>alb-sg</code></h4>
+                                <p class="text-xs text-slate-400 mt-1">Accepts web traffic and initiates Security Group Chaining to backend.</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-slate-300">Ingress: 80, 443 from 0.0.0.0/0</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-purple-300">Egress: 5000 to app-sg</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Downward Traffic Pipe -->
+                <div class="flex flex-col items-center">
+                    <div class="h-5 w-0.5 bg-emerald-500 relative">
+                        <div class="absolute -bottom-1 -left-1 text-emerald-400 text-[10px]">▼</div>
+                    </div>
+                    <span class="text-[10px] font-mono font-bold bg-slate-800 px-2.5 py-0.5 rounded text-emerald-300 border border-slate-700">
+                        Restricted Forwarding: Port 5000 (Target Group)
+                    </span>
+                </div>
+
+                <!-- TIER 2: PRIVATE APPLICATION LOGIC TIER -->
+                <div class="border border-emerald-500/40 rounded-2xl bg-emerald-950/20 p-5 relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500 text-slate-950">Tier 2</span>
+                            <h3 class="font-bold text-white text-base">Private Application Logic Tier</h3>
+                            <span class="text-xs text-slate-400 font-mono">(Private Subnets: 10.0.10.0/24 & 10.0.20.0/24)</span>
+                        </div>
+                        <span class="text-[11px] font-mono text-emerald-300 bg-emerald-950 px-2.5 py-1 rounded border border-emerald-800/60">
+                            Zero Direct Public IP
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Compute Engine -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-server"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">StockPulse Compute (EC2 / Container)</h4>
+                                <p class="text-xs text-slate-400 mt-1">Python 3.11 + Flask WSGI App running as unprivileged non-root user (<code>appuser</code>).</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-emerald-300">Port: 5000</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-amber-300">RBAC Active</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-sky-300">IDOR Protected</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- App Security Group -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-shield"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">Security Group: <code>app-sg</code></h4>
+                                <p class="text-xs text-slate-400 mt-1">Locked down: Ingress permitted ONLY from <code>alb-sg</code> on port 5000.</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-emerald-300">Ingress: 5000 from alb-sg</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-purple-300">Egress: 5432 to db-sg</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Downward Traffic Pipe -->
+                <div class="flex flex-col items-center">
+                    <div class="h-5 w-0.5 bg-emerald-500 relative">
+                        <div class="absolute -bottom-1 -left-1 text-emerald-400 text-[10px]">▼</div>
+                    </div>
+                    <span class="text-[10px] font-mono font-bold bg-slate-800 px-2.5 py-0.5 rounded text-emerald-300 border border-slate-700">
+                        Secure Database Connection: Port 5432 (Internal VPC Only)
+                    </span>
+                </div>
+
+                <!-- TIER 3: ISOLATED DATABASE TIER -->
+                <div class="border border-amber-500/40 rounded-2xl bg-amber-950/20 p-5 relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500 text-slate-950">Tier 3</span>
+                            <h3 class="font-bold text-white text-base">Isolated Database Storage Tier</h3>
+                            <span class="text-xs text-slate-400 font-mono">(DB Subnets: 10.0.30.0/24 & 10.0.40.0/24)</span>
+                        </div>
+                        <span class="text-[11px] font-mono text-rose-300 bg-rose-950 px-2.5 py-1 rounded border border-rose-800/60 font-bold">
+                            NO INTERNET ROUTE (Isolated)
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- RDS PostgreSQL -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-database"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">Amazon RDS PostgreSQL 15</h4>
+                                <p class="text-xs text-slate-400 mt-1">Multi-AZ Subnet Group. Fully managed relational database for products & audit comments.</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-rose-300">Public: FALSE</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-amber-300">Storage: KMS Encrypted</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DB Security Group -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-shield"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-white text-sm">Security Group: <code>db-sg</code></h4>
+                                <p class="text-xs text-slate-400 mt-1">Zero internet reachability. Accepts connections strictly from <code>app-sg</code> on port 5432.</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-emerald-300">Ingress: 5432 from app-sg</span>
+                                    <span class="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Egress: Deny All Outbound</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Management, Security & Observability Bar -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-cubes text-emerald-400"></i> Supporting AWS Management & Governance Services
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                    <div class="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-key text-amber-400"></i> AWS KMS
+                    </div>
+                    <p class="text-[11px] text-slate-400">Hardware-level AES-256 encryption at rest for RDS and EBS volumes.</p>
+                </div>
+                <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                    <div class="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-user-lock text-purple-400"></i> IAM Instance Profile
+                    </div>
+                    <p class="text-[11px] text-slate-400">Least-privilege role: zero static credentials in code or containers.</p>
+                </div>
+                <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                    <div class="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-terminal text-sky-400"></i> SSM Parameter Store
+                    </div>
+                    <p class="text-[11px] text-slate-400">Secure injection of database secrets and application tokens.</p>
+                </div>
+                <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                    <div class="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-chart-line text-emerald-400"></i> CloudWatch
+                    </div>
+                    <p class="text-[11px] text-slate-400">Real-time health check alarms, target group metrics, and server logs.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
